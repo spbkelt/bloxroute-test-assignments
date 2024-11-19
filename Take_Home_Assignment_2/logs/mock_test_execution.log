@@ -1,0 +1,47 @@
+(venv) ubuntu@ip-172-31-92-252:~/bloxroute/api$ pytest test_api_mock.py 
+============================================================================== test session starts ===============================================================================
+platform linux -- Python 3.12.3, pytest-8.3.3, pluggy-1.5.0
+rootdir: /home/ubuntu/bloxroute/api
+collected 4 items                                                                                                                                                                
+
+test_api_mock.py ..FF                                                                                                                                                      [100%]
+
+==================================================================================== FAILURES ====================================================================================
+______________________________________________________________________________ test_status_failure _______________________________________________________________________________
+
+mock_local_block = <MagicMock name='get_latest_beacon_slot' id='129052221707840'>, mock_latest_block = <MagicMock name='get_local_beacon_slot' id='129052204464848'>
+mock_local_slot = <MagicMock name='get_latest_block_height' id='129052204460960'>, mock_latest_slot = <MagicMock name='get_local_block_height' id='129052204625952'>
+testing_client = <FlaskClient <Flask 'app'>>
+
+    @patch("app.get_local_block_height", return_value=MOCK_LOCAL_BLOCK_HEIGHT)
+    @patch("app.get_latest_block_height", return_value=MOCK_LARGE_DIFFERENCE_BLOCK_HEIGHT)
+    @patch("app.get_local_beacon_slot", return_value=MOCK_LOCAL_BEACON_SLOT)
+    @patch("app.get_latest_beacon_slot", return_value=MOCK_LARGE_DIFFERENCE_BEACON_SLOT)
+    def test_status_failure(mock_local_block, mock_latest_block, mock_local_slot, mock_latest_slot, testing_client):
+        """Test the /status endpoint for an unhealthy response."""
+        response = testing_client.get('/status', query_string={"api_key": API_KEY})
+>       assert response.status_code == 200  # Intentional mismatch: This should fail
+E       assert 500 == 200
+E        +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code
+
+test_api_mock.py:55: AssertionError
+______________________________________________________________________________ test_height_failure _______________________________________________________________________________
+
+mock_local_block = <MagicMock name='get_local_block_height' id='129052204621152'>, testing_client = <FlaskClient <Flask 'app'>>
+
+    @patch("app.get_local_block_height", side_effect=Exception("Simulated error"))
+    def test_height_failure(mock_local_block, testing_client):
+        """Test the /height endpoint for a failure response."""
+        response = testing_client.get('/height')
+>       assert response.status_code == 200  # Intentional mismatch: This should fail
+E       assert 500 == 200
+E        +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code
+
+test_api_mock.py:62: AssertionError
+------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------
+ERROR    app:app.py:137 Error in /height: Simulated error
+============================================================================ short test summary info =============================================================================
+FAILED test_api_mock.py::test_status_failure - assert 500 == 200
+FAILED test_api_mock.py::test_height_failure - assert 500 == 200
+========================================================================== 2 failed, 2 passed in 0.88s ===========================================================================
+(venv) ubuntu@ip-172-31-92-252:~/bloxroute/api$ 

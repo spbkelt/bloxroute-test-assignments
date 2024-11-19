@@ -1,0 +1,45 @@
+<source>
+  @type tail
+  path /var/log/nginx/access.log
+  pos_file /var/log/fluent/fluentd-nginx-access.pos
+  tag nginx.access
+  <parse>
+    @type nginx
+    expression /^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)"(?:\s+(?<http_x_forwarded_for>[^ ]+))?)?$/
+    time_format %d/%b/%Y:%H:%M:%S %z
+  </parse>
+  read_from_head true
+  @log_level debug
+</source>
+
+<source>
+  @type tail
+  path /var/log/nginx/error.log
+  pos_file /var/log/fluent/fluentd-nginx-error.pos
+  tag nginx.error
+  <parse>
+    @type nginx
+    expression /^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)"(?:\s+(?<http_x_forwarded_for>[^ ]+))?)?$/
+    time_format %d/%b/%Y:%H:%M:%S %z
+  </parse>
+  read_from_head true
+  @log_level debug
+</source>
+
+<filter nginx.**>
+  @type grep
+  <regexp>
+    key remote
+    pattern /^(?=({% for ip in denylist %}{{ ip }}{% if not loop.last %}|{% endif %}{% endfor %})).*/
+  </regexp>
+  @log_level debug
+</filter>
+
+<match nginx.**>
+  @type file
+  path /var/log/fluent/denylist_audit.log
+  append true
+  time_slice_format %Y%m%d
+  time_slice_wait 10m
+  @log_level debug
+</match>

@@ -1,0 +1,955 @@
+MacBookPro:Take_Home_Assignment_1 dzolotnikov$ ./deploy.sh 
++ S3_BUCKET_NAME=bloxroute-dz-terraform-state-bucket
++ S3_POLICY_NAME=bloxroute-dz-terraform-s3-policy
++ DYNAMODB_TABLE_NAME=bloxroute-dz-terraform-lock-table
++ DYNAMODB_POLICY_NAME=bloxroute-dz-terraform-dynamodb-policy
++ TERRAFORM_ROLE_NAME=bloxroute-dz-terraform-role
+++ aws sts get-caller-identity --query Arn --output text
++ ADMIN_USER_ARN=arn:aws:iam::<aws-account-id>:user/admin
++ REGION=us-east-1
++ aws s3api create-bucket --bucket bloxroute-dz-terraform-state-bucket --region us-east-1
+{
+    "Location": "/bloxroute-dz-terraform-state-bucket"
+}
++ aws s3api put-bucket-encryption --bucket bloxroute-dz-terraform-state-bucket --server-side-encryption-configuration '{
+    "Rules": [{
+        "ApplyServerSideEncryptionByDefault": {
+            "SSEAlgorithm": "AES256"
+        }
+    }]
+}'
++ aws s3api put-bucket-versioning --bucket bloxroute-dz-terraform-state-bucket --versioning-configuration Status=Enabled
++ aws s3api put-bucket-logging --bucket bloxroute-dz-terraform-state-bucket --bucket-logging-status '{
+    "LoggingEnabled": {
+        "TargetBucket": "bloxroute-dz-terraform-state-bucket",
+        "TargetPrefix": "logs/"
+    }
+}'
+++ aws dynamodb list-tables --region us-east-1 --query TableNames --output text
+++ grep -w bloxroute-dz-terraform-lock-table
++ DYNAMODB_TABLE_EXISTS='bloxroute-dz-terraform-lock-table	terraform-lock-table'
++ '[' -n 'bloxroute-dz-terraform-lock-table	terraform-lock-table' ']'
++ echo 'DynamoDB table '\''bloxroute-dz-terraform-lock-table'\'' already exists in region '\''us-east-1'\''. Skipping creation.'
+DynamoDB table 'bloxroute-dz-terraform-lock-table' already exists in region 'us-east-1'. Skipping creation.
+++ aws iam list-policies --scope Local --query 'Policies[?PolicyName=='\''bloxroute-dz-terraform-s3-policy'\''].Arn' --output text
++ S3_POLICY_ARN=
++ '[' -z '' ']'
++ echo 'Policy '\''bloxroute-dz-terraform-s3-policy'\'' does not exist. Creating the policy...'
+Policy 'bloxroute-dz-terraform-s3-policy' does not exist. Creating the policy...
+++ aws iam create-policy --policy-name bloxroute-dz-terraform-s3-policy --policy-document '{
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:ListS3_BUCKET_NAME"
+                ],
+                "Resource": [
+                    "arn:aws:s3:::bloxroute-dz-terraform-state-bucket",
+                    "arn:aws:s3:::bloxroute-dz-terraform-state-bucket/*"
+                ]
+            }
+        ]
+    }' --query Policy.Arn --output text
++ S3_POLICY_ARN=arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-s3-policy
++ echo 'S3 access policy created: arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-s3-policy'
+S3 access policy created: arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-s3-policy
+++ aws iam list-policies --scope Local --query 'Policies[?PolicyName=='\''bloxroute-dz-terraform-dynamodb-policy'\''].Arn' --output text
++ DYNAMODB_POLICY_ARN=
++ '[' -z '' ']'
++ echo 'Policy '\''bloxroute-dz-terraform-dynamodb-policy'\'' does not exist. Creating the policy...'
+Policy 'bloxroute-dz-terraform-dynamodb-policy' does not exist. Creating the policy...
++++ aws sts get-caller-identity --query Account --output text
+++ aws iam create-policy --policy-name bloxroute-dz-terraform-dynamodb-policy --policy-document '{
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:PutItem",
+                    "dynamodb:GetItem",
+                    "dynamodb:DeleteItem"
+                ],
+                "Resource": "arn:aws:dynamodb:us-east-1:<aws-account-id>:table/bloxroute-dz-terraform-lock-table"
+            }
+        ]
+    }' --query Policy.Arn --output text
++ DYNAMODB_POLICY_ARN=arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-dynamodb-policy
++ echo 'DynamoDB access policy created: arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-dynamodb-policy'
+DynamoDB access policy created: arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-dynamodb-policy
++ echo 'Checking if IAM role '\''bloxroute-dz-terraform-role'\'' exists...'
+Checking if IAM role 'bloxroute-dz-terraform-role' exists...
+++ aws iam list-roles --query 'Roles[?RoleName=='\''bloxroute-dz-terraform-role'\'']' --output text
++ TERRAFORM_ROLE_EXISTS=
++ '[' -z '' ']'
++ echo 'IAM role '\''bloxroute-dz-terraform-role'\'' does not exist. Creating the role...'
+IAM role 'bloxroute-dz-terraform-role' does not exist. Creating the role...
++ aws iam create-role --role-name bloxroute-dz-terraform-role --assume-role-policy-document '{
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": "arn:aws:iam::<aws-account-id>:user/admin"
+                },
+                "Action": "sts:AssumeRole"
+            }
+        ]
+    }'
+{
+    "Role": {
+        "Path": "/",
+        "RoleName": "bloxroute-dz-terraform-role",
+        "RoleId": "<role-id>",
+        "Arn": "arn:aws:iam::<aws-account-id>:role/bloxroute-dz-terraform-role",
+        "CreateDate": "2024-11-17T22:48:08+00:00",
+        "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "AWS": "arn:aws:iam::<aws-account-id>:user/admin"
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+    }
+}
++ echo 'IAM role '\''bloxroute-dz-terraform-role'\'' created successfully.'
+IAM role 'bloxroute-dz-terraform-role' created successfully.
++ CUSTOM_POLICY_NAME=bloxroute-dz-terraform-ec2-vpc-policy
+++ aws iam list-policies --scope Local --query 'Policies[?PolicyName=='\''bloxroute-dz-terraform-ec2-vpc-policy'\''].Arn' --output text
++ CUSTOM_POLICY_ARN=
++ '[' -z '' ']'
++ echo 'Creating custom policy '\''bloxroute-dz-terraform-ec2-vpc-policy'\''...'
+Creating custom policy 'bloxroute-dz-terraform-ec2-vpc-policy'...
+++ aws iam create-policy --policy-name bloxroute-dz-terraform-ec2-vpc-policy --policy-document '{
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "iam:Get*",
+                    "iam:List*",
+                    "iam:PassRole",
+                    "iam:CreateRole",
+                    "iam:AttachRolePolicy",
+                    "iam:AddRoleToInstanceProfile",
+                    "iam:DeleteInstanceProfile",
+                    "iam:CreateInstanceProfile",
+                    "ec2:Describe*",     
+                    "ec2:CreateVpc",
+                    "ec2:AllocateAddress",
+                    "ec2:CreateSubnet",
+                    "ec2:ReleaseAddress",
+                    "ec2:CreateRouteTable",
+                    "ec2:AssociateRouteTable",
+                    "ec2:CreateInternetGateway",
+                    "ec2:AttachInternetGateway",
+                    "ec2:AuthorizeSecurityGroupIngress",
+                    "ec2:AuthorizeSecurityGroupEgress",
+                    "ec2:RunInstances",
+                    "ec2:CreateNatGateway",
+                    "ec2:ModifyVpcAttribute",
+                    "ec2:CreateRoute",
+                    "ec2:CreateTags",
+                    "ec2:DeleteSubnet",
+                    "ec2:DeleteSecurityGroup",
+                    "ec2:DeleteRouteTable",
+                    "ec2:CreateSecurityGroup",
+                    "ec2:ModifySubnetAttribute",
+                    "ec2:RevokeSecurityGroupEgress",
+                    "ec2:TerminateInstances",
+                    "ec2:StartInstances",
+                    "ec2:StopInstances",
+                    "ec2:ModifyInstanceAttribute",
+                    "elasticloadbalancing:Describe*",
+                    "elasticloadbalancing:CreateLoadBalancer",
+                    "elasticloadbalancing:CreateTargetGroup",
+                    "elasticloadbalancing:ModifyTargetGroupAttributes",
+                    "elasticloadbalancing:DeleteTargetGroup",
+                    "elasticloadbalancing:ModifyLoadBalancerAttributes",
+                    "elasticloadbalancing:RegisterTargets",
+                    "elasticloadbalancing:CreateListener",
+                    "elasticloadbalancing:DeleteLoadBalancer",
+                    "elasticloadbalancing:DeregisterTargets",
+                    "elasticloadbalancing:DeleteListener",
+                    "elasticloadbalancing:AddTags"
+                ],
+                "Resource": "*"
+            }
+        ]
+    }' --query Policy.Arn --output text
++ CUSTOM_POLICY_ARN=arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-ec2-vpc-policy
++ echo 'Custom policy created: arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-ec2-vpc-policy'
+Custom policy created: arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-ec2-vpc-policy
++ echo 'Attaching policies to the IAM role...'
+Attaching policies to the IAM role...
++ aws iam attach-role-policy --role-name bloxroute-dz-terraform-role --policy-arn arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-s3-policy
++ aws iam attach-role-policy --role-name bloxroute-dz-terraform-role --policy-arn arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-dynamodb-policy
++ aws iam attach-role-policy --role-name bloxroute-dz-terraform-role --policy-arn arn:aws:iam::<aws-account-id>:policy/bloxroute-dz-terraform-ec2-vpc-policy
++ echo 'Policies attached to IAM role: bloxroute-dz-terraform-role'
+Policies attached to IAM role: bloxroute-dz-terraform-role
++ echo 'Assuming IAM role: bloxroute-dz-terraform-role...'
+Assuming IAM role: bloxroute-dz-terraform-role...
+++ aws sts get-caller-identity --query Account --output text
++ ROLE_ARN=arn:aws:iam::<aws-account-id>:role/bloxroute-dz-terraform-role
+++ aws sts assume-role --role-arn arn:aws:iam::<aws-account-id>:role/bloxroute-dz-terraform-role --role-session-name terraform-session
++ ASSUME_ROLE_OUTPUT='{
+    "Credentials": {
+        "AccessKeyId": "<AccessKeyId>",
+        "SecretAccessKey": "<SecretAccessKey>",
+        "SessionToken": "<SessionToken>",
+        "Expiration": "2024-11-17T23:48:17+00:00"
+    },
+    "AssumedRoleUser": {
+        "AssumedRoleId": "AROAWPPO6UUJ5BXF6YL42:terraform-session",
+        "Arn": "arn:aws:sts::<aws-account-id>:assumed-role/bloxroute-dz-terraform-role/terraform-session"
+    }
+}'
+++ echo '{
+    "Credentials": {
+        "AccessKeyId": "<AccessKeyId>",
+        "SecretAccessKey": "<SecretAccessKey>",
+        "SessionToken": "<SessionToken>",
+        "Expiration": "2024-11-17T23:48:17+00:00"
+    },
+    "AssumedRoleUser": {
+        "AssumedRoleId": "AROAWPPO6UUJ5BXF6YL42:terraform-session",
+        "Arn": "arn:aws:sts::<aws-account-id>:assumed-role/bloxroute-dz-terraform-role/terraform-session"
+    }
+}'
+++ jq -r .Credentials.AccessKeyId
++ export AWS_ACCESS_KEY_ID=ASIAWPPO6UUJ2R733WHD
++ AWS_ACCESS_KEY_ID=ASIAWPPO6UUJ2R733WHD
+++ echo '{
+    "Credentials": {
+        "AccessKeyId": "<AccessKeyId>",
+        "SecretAccessKey": "<SecretAccessKey>",
+        "SessionToken": "<SessionToken>",
+        "Expiration": "2024-11-17T23:48:17+00:00"
+    },
+    "AssumedRoleUser": {
+        "AssumedRoleId": "AROAWPPO6UUJ5BXF6YL42:terraform-session",
+        "Arn": "arn:aws:sts::<aws-account-id>:assumed-role/bloxroute-dz-terraform-role/terraform-session"
+    }
+}'
+++ jq -r .Credentials.SecretAccessKey
++ export AWS_SECRET_ACCESS_KEY=faSvytNFsZ1MbBIw2Nao8gNtDRnbE4fpxRuI7fq3
++ AWS_SECRET_ACCESS_KEY=faSvytNFsZ1MbBIw2Nao8gNtDRnbE4fpxRuI7fq3
+++ echo '{
+    "Credentials": {
+        "AccessKeyId": "<AccessKeyId>",
+        "SecretAccessKey": "<SecretAccessKey>",
+        "SessionToken": "<SessionToken>",
+        "Expiration": "2024-11-17T23:48:17+00:00"
+    },
+    "AssumedRoleUser": {
+        "AssumedRoleId": "AROAWPPO6UUJ5BXF6YL42:terraform-session",
+        "Arn": "arn:aws:sts::<aws-account-id>:assumed-role/bloxroute-dz-terraform-role/terraform-session"
+    }
+}'
+++ jq -r .Credentials.SessionToken
++ export AWS_SESSION_TOKEN=<SessionToken>
++ AWS_SESSION_TOKEN=<SessionToken>
++ '[' -z ASIAWPPO6UUJ2R733WHD ']'
++ '[' -z faSvytNFsZ1MbBIw2Nao8gNtDRnbE4fpxRuI7fq3 ']'
++ '[' -z <SessionToken> ']'
++ echo 'Temporary credentials obtained successfully.'
+Temporary credentials obtained successfully.
++ terraform init -upgrade
+Error opening log file: open logs: is a directory
+Initializing the backend...
+Initializing provider plugins...
+- Finding latest version of hashicorp/aws...
+- Using previously-installed hashicorp/aws v5.76.0
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
++ terraform apply -auto-approve
+Error opening log file: open logs: is a directory
+data.aws_caller_identity.current: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=<aws-account-id>]
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_eip.nat_eip will be created
+  + resource "aws_eip" "nat_eip" {
+      + allocation_id        = (known after apply)
+      + arn                  = (known after apply)
+      + association_id       = (known after apply)
+      + carrier_ip           = (known after apply)
+      + customer_owned_ip    = (known after apply)
+      + domain               = (known after apply)
+      + id                   = (known after apply)
+      + instance             = (known after apply)
+      + ipam_pool_id         = (known after apply)
+      + network_border_group = (known after apply)
+      + network_interface    = (known after apply)
+      + private_dns          = (known after apply)
+      + private_ip           = (known after apply)
+      + ptr_record           = (known after apply)
+      + public_dns           = (known after apply)
+      + public_ip            = (known after apply)
+      + public_ipv4_pool     = (known after apply)
+      + tags_all             = (known after apply)
+      + vpc                  = (known after apply)
+    }
+
+  # aws_iam_instance_profile.ssm_instance_profile will be created
+  + resource "aws_iam_instance_profile" "ssm_instance_profile" {
+      + arn         = (known after apply)
+      + create_date = (known after apply)
+      + id          = (known after apply)
+      + name        = "nginx-ec2-ssm-instance-profile"
+      + name_prefix = (known after apply)
+      + path        = "/"
+      + role        = "nginx-ec2-ssm-role"
+      + tags_all    = (known after apply)
+      + unique_id   = (known after apply)
+    }
+
+  # aws_iam_role.ssm_role will be created
+  + resource "aws_iam_role" "ssm_role" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ec2.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "nginx-ec2-ssm-role"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = (known after apply)
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role_policy_attachment.ssm_policy will be created
+  + resource "aws_iam_role_policy_attachment" "ssm_policy" {
+      + id         = (known after apply)
+      + policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      + role       = "nginx-ec2-ssm-role"
+    }
+
+  # aws_instance.nginx_server will be created
+  + resource "aws_instance" "nginx_server" {
+      + ami                                  = "ami-005fc0f236362e99f"
+      + arn                                  = (known after apply)
+      + associate_public_ip_address          = false
+      + availability_zone                    = (known after apply)
+      + cpu_core_count                       = (known after apply)
+      + cpu_threads_per_core                 = (known after apply)
+      + disable_api_stop                     = (known after apply)
+      + disable_api_termination              = (known after apply)
+      + ebs_optimized                        = (known after apply)
+      + get_password_data                    = false
+      + host_id                              = (known after apply)
+      + host_resource_group_arn              = (known after apply)
+      + iam_instance_profile                 = "nginx-ec2-ssm-instance-profile"
+      + id                                   = (known after apply)
+      + instance_initiated_shutdown_behavior = (known after apply)
+      + instance_lifecycle                   = (known after apply)
+      + instance_state                       = (known after apply)
+      + instance_type                        = "t2.micro"
+      + ipv6_address_count                   = (known after apply)
+      + ipv6_addresses                       = (known after apply)
+      + key_name                             = (known after apply)
+      + monitoring                           = (known after apply)
+      + outpost_arn                          = (known after apply)
+      + password_data                        = (known after apply)
+      + placement_group                      = (known after apply)
+      + placement_partition_number           = (known after apply)
+      + primary_network_interface_id         = (known after apply)
+      + private_dns                          = (known after apply)
+      + private_ip                           = (known after apply)
+      + public_dns                           = (known after apply)
+      + public_ip                            = (known after apply)
+      + secondary_private_ips                = (known after apply)
+      + security_groups                      = (known after apply)
+      + source_dest_check                    = true
+      + spot_instance_request_id             = (known after apply)
+      + subnet_id                            = (known after apply)
+      + tags                                 = {
+          + "Name" = "nginx-server"
+        }
+      + tags_all                             = {
+          + "Name" = "nginx-server"
+        }
+      + tenancy                              = (known after apply)
+      + user_data                            = "97c2f32b9eeaa96bd19e232d1a19702d08ebb941"
+      + user_data_base64                     = (known after apply)
+      + user_data_replace_on_change          = false
+      + vpc_security_group_ids               = (known after apply)
+
+      + capacity_reservation_specification (known after apply)
+
+      + cpu_options (known after apply)
+
+      + ebs_block_device (known after apply)
+
+      + enclave_options (known after apply)
+
+      + ephemeral_block_device (known after apply)
+
+      + instance_market_options (known after apply)
+
+      + maintenance_options (known after apply)
+
+      + metadata_options (known after apply)
+
+      + network_interface (known after apply)
+
+      + private_dns_name_options (known after apply)
+
+      + root_block_device (known after apply)
+    }
+
+  # aws_internet_gateway.igw will be created
+  + resource "aws_internet_gateway" "igw" {
+      + arn      = (known after apply)
+      + id       = (known after apply)
+      + owner_id = (known after apply)
+      + tags_all = (known after apply)
+      + vpc_id   = (known after apply)
+    }
+
+  # aws_lb.nginx_alb will be created
+  + resource "aws_lb" "nginx_alb" {
+      + arn                                                          = (known after apply)
+      + arn_suffix                                                   = (known after apply)
+      + client_keep_alive                                            = 3600
+      + desync_mitigation_mode                                       = "defensive"
+      + dns_name                                                     = (known after apply)
+      + drop_invalid_header_fields                                   = false
+      + enable_deletion_protection                                   = false
+      + enable_http2                                                 = true
+      + enable_tls_version_and_cipher_suite_headers                  = false
+      + enable_waf_fail_open                                         = false
+      + enable_xff_client_port                                       = false
+      + enforce_security_group_inbound_rules_on_private_link_traffic = (known after apply)
+      + id                                                           = (known after apply)
+      + idle_timeout                                                 = 60
+      + internal                                                     = false
+      + ip_address_type                                              = (known after apply)
+      + load_balancer_type                                           = "application"
+      + name                                                         = "nginx-alb"
+      + name_prefix                                                  = (known after apply)
+      + preserve_host_header                                         = false
+      + security_groups                                              = (known after apply)
+      + subnets                                                      = (known after apply)
+      + tags_all                                                     = (known after apply)
+      + vpc_id                                                       = (known after apply)
+      + xff_header_processing_mode                                   = "append"
+      + zone_id                                                      = (known after apply)
+
+      + subnet_mapping (known after apply)
+    }
+
+  # aws_lb_listener.http_listener will be created
+  + resource "aws_lb_listener" "http_listener" {
+      + arn                      = (known after apply)
+      + id                       = (known after apply)
+      + load_balancer_arn        = (known after apply)
+      + port                     = 80
+      + protocol                 = "HTTP"
+      + ssl_policy               = (known after apply)
+      + tags_all                 = (known after apply)
+      + tcp_idle_timeout_seconds = (known after apply)
+
+      + default_action {
+          + order            = (known after apply)
+          + target_group_arn = (known after apply)
+          + type             = "forward"
+        }
+
+      + mutual_authentication (known after apply)
+    }
+
+  # aws_lb_target_group.nginx will be created
+  + resource "aws_lb_target_group" "nginx" {
+      + arn                                = (known after apply)
+      + arn_suffix                         = (known after apply)
+      + connection_termination             = (known after apply)
+      + deregistration_delay               = "300"
+      + id                                 = (known after apply)
+      + ip_address_type                    = (known after apply)
+      + lambda_multi_value_headers_enabled = false
+      + load_balancer_arns                 = (known after apply)
+      + load_balancing_algorithm_type      = (known after apply)
+      + load_balancing_anomaly_mitigation  = (known after apply)
+      + load_balancing_cross_zone_enabled  = (known after apply)
+      + name                               = "nginx-tg"
+      + name_prefix                        = (known after apply)
+      + port                               = 80
+      + preserve_client_ip                 = (known after apply)
+      + protocol                           = "HTTP"
+      + protocol_version                   = (known after apply)
+      + proxy_protocol_v2                  = false
+      + slow_start                         = 0
+      + tags                               = {
+          + "Name" = "nginx-tg"
+        }
+      + tags_all                           = {
+          + "Name" = "nginx-tg"
+        }
+      + target_type                        = "instance"
+      + vpc_id                             = (known after apply)
+
+      + health_check {
+          + enabled             = true
+          + healthy_threshold   = 3
+          + interval            = 30
+          + matcher             = (known after apply)
+          + path                = "/"
+          + port                = "traffic-port"
+          + protocol            = "HTTP"
+          + timeout             = 5
+          + unhealthy_threshold = 2
+        }
+
+      + stickiness (known after apply)
+
+      + target_failover (known after apply)
+
+      + target_group_health (known after apply)
+
+      + target_health_state (known after apply)
+    }
+
+  # aws_lb_target_group_attachment.nginx will be created
+  + resource "aws_lb_target_group_attachment" "nginx" {
+      + id               = (known after apply)
+      + port             = 80
+      + target_group_arn = (known after apply)
+      + target_id        = (known after apply)
+    }
+
+  # aws_nat_gateway.nat_gateway will be created
+  + resource "aws_nat_gateway" "nat_gateway" {
+      + allocation_id                      = (known after apply)
+      + association_id                     = (known after apply)
+      + connectivity_type                  = "public"
+      + id                                 = (known after apply)
+      + network_interface_id               = (known after apply)
+      + private_ip                         = (known after apply)
+      + public_ip                          = (known after apply)
+      + secondary_private_ip_address_count = (known after apply)
+      + secondary_private_ip_addresses     = (known after apply)
+      + subnet_id                          = (known after apply)
+      + tags_all                           = (known after apply)
+    }
+
+  # aws_route_table.private_route_table will be created
+  + resource "aws_route_table" "private_route_table" {
+      + arn              = (known after apply)
+      + id               = (known after apply)
+      + owner_id         = (known after apply)
+      + propagating_vgws = (known after apply)
+      + route            = [
+          + {
+              + cidr_block                 = "0.0.0.0/0"
+              + nat_gateway_id             = (known after apply)
+                # (11 unchanged attributes hidden)
+            },
+        ]
+      + tags             = {
+          + "Name" = "Private Route Table"
+        }
+      + tags_all         = {
+          + "Name" = "Private Route Table"
+        }
+      + vpc_id           = (known after apply)
+    }
+
+  # aws_route_table.public_route_table will be created
+  + resource "aws_route_table" "public_route_table" {
+      + arn              = (known after apply)
+      + id               = (known after apply)
+      + owner_id         = (known after apply)
+      + propagating_vgws = (known after apply)
+      + route            = [
+          + {
+              + cidr_block                 = "0.0.0.0/0"
+              + gateway_id                 = (known after apply)
+                # (11 unchanged attributes hidden)
+            },
+        ]
+      + tags_all         = (known after apply)
+      + vpc_id           = (known after apply)
+    }
+
+  # aws_route_table_association.private_subnet_association will be created
+  + resource "aws_route_table_association" "private_subnet_association" {
+      + id             = (known after apply)
+      + route_table_id = (known after apply)
+      + subnet_id      = (known after apply)
+    }
+
+  # aws_route_table_association.public_subnet_1_association will be created
+  + resource "aws_route_table_association" "public_subnet_1_association" {
+      + id             = (known after apply)
+      + route_table_id = (known after apply)
+      + subnet_id      = (known after apply)
+    }
+
+  # aws_route_table_association.public_subnet_2_association will be created
+  + resource "aws_route_table_association" "public_subnet_2_association" {
+      + id             = (known after apply)
+      + route_table_id = (known after apply)
+      + subnet_id      = (known after apply)
+    }
+
+  # aws_security_group.alb_sg will be created
+  + resource "aws_security_group" "alb_sg" {
+      + arn                    = (known after apply)
+      + description            = "Allow HTTP access to ALB"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + from_port        = 0
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "-1"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 0
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + from_port        = 80
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 80
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + name                   = (known after apply)
+      + name_prefix            = "alb-sg-"
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags                   = {
+          + "Name" = "alb-sg"
+        }
+      + tags_all               = {
+          + "Name" = "alb-sg"
+        }
+      + vpc_id                 = (known after apply)
+    }
+
+  # aws_security_group.nginx_sg will be created
+  + resource "aws_security_group" "nginx_sg" {
+      + arn                    = (known after apply)
+      + description            = "Security group for Nginx instance"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + description      = "Allow all outbound"
+              + from_port        = 0
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "-1"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 0
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = []
+              + description      = "Allow HTTP from ALB"
+              + from_port        = 80
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = (known after apply)
+              + self             = false
+              + to_port          = 80
+            },
+        ]
+      + name                   = (known after apply)
+      + name_prefix            = "nginx-sg"
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags_all               = (known after apply)
+      + vpc_id                 = (known after apply)
+    }
+
+  # aws_subnet.private_subnet will be created
+  + resource "aws_subnet" "private_subnet" {
+      + arn                                            = (known after apply)
+      + assign_ipv6_address_on_creation                = false
+      + availability_zone                              = "us-east-1a"
+      + availability_zone_id                           = (known after apply)
+      + cidr_block                                     = "10.0.4.0/24"
+      + enable_dns64                                   = false
+      + enable_resource_name_dns_a_record_on_launch    = false
+      + enable_resource_name_dns_aaaa_record_on_launch = false
+      + id                                             = (known after apply)
+      + ipv6_cidr_block_association_id                 = (known after apply)
+      + ipv6_native                                    = false
+      + map_public_ip_on_launch                        = false
+      + owner_id                                       = (known after apply)
+      + private_dns_hostname_type_on_launch            = (known after apply)
+      + tags                                           = {
+          + "Name" = "Private Subnet"
+        }
+      + tags_all                                       = {
+          + "Name" = "Private Subnet"
+        }
+      + vpc_id                                         = (known after apply)
+    }
+
+  # aws_subnet.public_subnet_1 will be created
+  + resource "aws_subnet" "public_subnet_1" {
+      + arn                                            = (known after apply)
+      + assign_ipv6_address_on_creation                = false
+      + availability_zone                              = "us-east-1a"
+      + availability_zone_id                           = (known after apply)
+      + cidr_block                                     = "10.0.1.0/24"
+      + enable_dns64                                   = false
+      + enable_resource_name_dns_a_record_on_launch    = false
+      + enable_resource_name_dns_aaaa_record_on_launch = false
+      + id                                             = (known after apply)
+      + ipv6_cidr_block_association_id                 = (known after apply)
+      + ipv6_native                                    = false
+      + map_public_ip_on_launch                        = true
+      + owner_id                                       = (known after apply)
+      + private_dns_hostname_type_on_launch            = (known after apply)
+      + tags                                           = {
+          + "Name" = "Public Subnet 1"
+        }
+      + tags_all                                       = {
+          + "Name" = "Public Subnet 1"
+        }
+      + vpc_id                                         = (known after apply)
+    }
+
+  # aws_subnet.public_subnet_2 will be created
+  + resource "aws_subnet" "public_subnet_2" {
+      + arn                                            = (known after apply)
+      + assign_ipv6_address_on_creation                = false
+      + availability_zone                              = "us-east-1b"
+      + availability_zone_id                           = (known after apply)
+      + cidr_block                                     = "10.0.2.0/24"
+      + enable_dns64                                   = false
+      + enable_resource_name_dns_a_record_on_launch    = false
+      + enable_resource_name_dns_aaaa_record_on_launch = false
+      + id                                             = (known after apply)
+      + ipv6_cidr_block_association_id                 = (known after apply)
+      + ipv6_native                                    = false
+      + map_public_ip_on_launch                        = true
+      + owner_id                                       = (known after apply)
+      + private_dns_hostname_type_on_launch            = (known after apply)
+      + tags                                           = {
+          + "Name" = "Public Subnet 2"
+        }
+      + tags_all                                       = {
+          + "Name" = "Public Subnet 2"
+        }
+      + vpc_id                                         = (known after apply)
+    }
+
+  # aws_vpc.custom_vpc will be created
+  + resource "aws_vpc" "custom_vpc" {
+      + arn                                  = (known after apply)
+      + cidr_block                           = "10.0.0.0/16"
+      + default_network_acl_id               = (known after apply)
+      + default_route_table_id               = (known after apply)
+      + default_security_group_id            = (known after apply)
+      + dhcp_options_id                      = (known after apply)
+      + enable_dns_hostnames                 = true
+      + enable_dns_support                   = true
+      + enable_network_address_usage_metrics = (known after apply)
+      + id                                   = (known after apply)
+      + instance_tenancy                     = "default"
+      + ipv6_association_id                  = (known after apply)
+      + ipv6_cidr_block                      = (known after apply)
+      + ipv6_cidr_block_network_border_group = (known after apply)
+      + main_route_table_id                  = (known after apply)
+      + owner_id                             = (known after apply)
+      + tags_all                             = (known after apply)
+    }
+
+Plan: 22 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + instance_id         = (known after apply)
+  + nginx_http_endpoint = (known after apply)
+aws_iam_role.ssm_role: Creating...
+aws_vpc.custom_vpc: Creating...
+aws_eip.nat_eip: Creating...
+aws_iam_role.ssm_role: Creation complete after 1s [id=nginx-ec2-ssm-role]
+aws_iam_role_policy_attachment.ssm_policy: Creating...
+aws_iam_instance_profile.ssm_instance_profile: Creating...
+aws_eip.nat_eip: Creation complete after 1s [id=eipalloc-0f3b1be518d1d5816]
+aws_iam_role_policy_attachment.ssm_policy: Creation complete after 0s [id=nginx-ec2-ssm-role-20241117224830178600000001]
+aws_iam_instance_profile.ssm_instance_profile: Creation complete after 7s [id=nginx-ec2-ssm-instance-profile]
+aws_vpc.custom_vpc: Still creating... [10s elapsed]
+aws_vpc.custom_vpc: Creation complete after 13s [id=vpc-02e7e152daa68b28e]
+aws_internet_gateway.igw: Creating...
+aws_subnet.public_subnet_1: Creating...
+aws_subnet.public_subnet_2: Creating...
+aws_subnet.private_subnet: Creating...
+aws_lb_target_group.nginx: Creating...
+aws_security_group.alb_sg: Creating...
+aws_internet_gateway.igw: Creation complete after 1s [id=igw-033766bb0bb99f486]
+aws_route_table.public_route_table: Creating...
+aws_subnet.private_subnet: Creation complete after 1s [id=subnet-0cabdb4bc16cb6f08]
+aws_lb_target_group.nginx: Creation complete after 2s [id=arn:aws:elasticloadbalancing:us-east-1:<aws-account-id>:targetgroup/nginx-tg/eaeb259e39e68eb3]
+aws_route_table.public_route_table: Creation complete after 1s [id=rtb-0302e55c895f32eae]
+aws_security_group.alb_sg: Creation complete after 4s [id=sg-00d1111d4cfde8724]
+aws_security_group.nginx_sg: Creating...
+aws_security_group.nginx_sg: Creation complete after 3s [id=sg-026e8598161c12c84]
+aws_instance.nginx_server: Creating...
+aws_subnet.public_subnet_1: Still creating... [10s elapsed]
+aws_subnet.public_subnet_2: Still creating... [10s elapsed]
+aws_subnet.public_subnet_2: Creation complete after 11s [id=subnet-0cc76dda1c6ed57f5]
+aws_subnet.public_subnet_1: Creation complete after 12s [id=subnet-039a0c476e57d2c58]
+aws_route_table_association.public_subnet_2_association: Creating...
+aws_route_table_association.public_subnet_1_association: Creating...
+aws_nat_gateway.nat_gateway: Creating...
+aws_lb.nginx_alb: Creating...
+aws_route_table_association.public_subnet_1_association: Creation complete after 0s [id=rtbassoc-033a5f059f9a32e4e]
+aws_route_table_association.public_subnet_2_association: Creation complete after 1s [id=rtbassoc-02edb26849e84c645]
+aws_instance.nginx_server: Still creating... [10s elapsed]
+aws_nat_gateway.nat_gateway: Still creating... [10s elapsed]
+aws_lb.nginx_alb: Still creating... [10s elapsed]
+aws_instance.nginx_server: Creation complete after 16s [id=i-0ef164c9fe545a45c]
+aws_lb_target_group_attachment.nginx: Creating...
+aws_lb_target_group_attachment.nginx: Creation complete after 0s [id=arn:aws:elasticloadbalancing:us-east-1:<aws-account-id>:targetgroup/nginx-tg/eaeb259e39e68eb3-20241117224905222200000007]
+aws_nat_gateway.nat_gateway: Still creating... [20s elapsed]
+aws_lb.nginx_alb: Still creating... [20s elapsed]
+aws_nat_gateway.nat_gateway: Still creating... [30s elapsed]
+aws_lb.nginx_alb: Still creating... [30s elapsed]
+aws_nat_gateway.nat_gateway: Still creating... [40s elapsed]
+aws_lb.nginx_alb: Still creating... [40s elapsed]
+aws_nat_gateway.nat_gateway: Still creating... [50s elapsed]
+aws_lb.nginx_alb: Still creating... [50s elapsed]
+aws_nat_gateway.nat_gateway: Still creating... [1m0s elapsed]
+aws_lb.nginx_alb: Still creating... [1m0s elapsed]
+aws_nat_gateway.nat_gateway: Still creating... [1m10s elapsed]
+aws_lb.nginx_alb: Still creating... [1m10s elapsed]
+aws_lb.nginx_alb: Still creating... [1m20s elapsed]
+aws_nat_gateway.nat_gateway: Still creating... [1m20s elapsed]
+aws_nat_gateway.nat_gateway: Still creating... [1m30s elapsed]
+aws_lb.nginx_alb: Still creating... [1m30s elapsed]
+aws_nat_gateway.nat_gateway: Creation complete after 1m36s [id=nat-075b898adfbd5e579]
+aws_route_table.private_route_table: Creating...
+aws_route_table.private_route_table: Creation complete after 1s [id=rtb-09be6d736c9cc6875]
+aws_route_table_association.private_subnet_association: Creating...
+aws_route_table_association.private_subnet_association: Creation complete after 1s [id=rtbassoc-04a8b955cc0ab5714]
+aws_lb.nginx_alb: Still creating... [1m40s elapsed]
+aws_lb.nginx_alb: Still creating... [1m50s elapsed]
+aws_lb.nginx_alb: Still creating... [2m0s elapsed]
+aws_lb.nginx_alb: Still creating... [2m10s elapsed]
+aws_lb.nginx_alb: Still creating... [2m20s elapsed]
+aws_lb.nginx_alb: Still creating... [2m30s elapsed]
+aws_lb.nginx_alb: Still creating... [2m40s elapsed]
+aws_lb.nginx_alb: Still creating... [2m50s elapsed]
+aws_lb.nginx_alb: Still creating... [3m0s elapsed]
+aws_lb.nginx_alb: Still creating... [3m10s elapsed]
+aws_lb.nginx_alb: Still creating... [3m20s elapsed]
+aws_lb.nginx_alb: Creation complete after 3m24s [id=arn:aws:elasticloadbalancing:us-east-1:<aws-account-id>:loadbalancer/app/nginx-alb/a4c8433b7f8c5155]
+aws_lb_listener.http_listener: Creating...
+aws_lb_listener.http_listener: Creation complete after 1s [id=arn:aws:elasticloadbalancing:us-east-1:<aws-account-id>:listener/app/nginx-alb/a4c8433b7f8c5155/2719d85937e97fd9]
+
+Apply complete! Resources: 22 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+instance_id = "i-0ef164c9fe545a45c"
+nginx_http_endpoint = "http://nginx-alb-153778697.us-east-1.elb.amazonaws.com"
+
+curl -v http://nginx-alb-153778697.us-east-1.elb.amazonaws.com
+* Host nginx-alb-153778697.us-east-1.elb.amazonaws.com:80 was resolved.
+* IPv6: (none)
+* IPv4: 54.211.52.242, 54.197.244.111
+*   Trying 54.211.52.242:80...
+* Connected to nginx-alb-153778697.us-east-1.elb.amazonaws.com (54.211.52.242) port 80
+> GET / HTTP/1.1
+> Host: nginx-alb-153778697.us-east-1.elb.amazonaws.com
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 200 OK
+< Date: Sun, 17 Nov 2024 22:56:16 GMT
+< Content-Type: text/html
+< Content-Length: 612
+< Connection: keep-alive
+< Server: nginx/1.18.0 (Ubuntu)
+< Last-Modified: Sun, 17 Nov 2024 22:55:02 GMT
+< ETag: "673a7446-264"
+< Accept-Ranges: bytes
+< 
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+* Connection #0 to host nginx-alb-153778697.us-east-1.elb.amazonaws.com left intact
+

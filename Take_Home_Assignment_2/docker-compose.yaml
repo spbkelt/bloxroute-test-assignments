@@ -1,0 +1,74 @@
+services:
+  # Lighthouse Configuration
+  lighthouse:
+    image: sigp/lighthouse:latest
+    command:
+      - lighthouse
+      - beacon
+      - --network=sepolia
+      - --http
+      - --http-address=0.0.0.0
+      - --execution-endpoint=http://geth:8551
+      - --execution-jwt=/jwt/jwtsecret
+      - --checkpoint-sync-url=https://sepolia.beaconstate.info
+      - --disable-deposit-contract-sync
+      - --disable-backfill-rate-limiting
+    ports:
+      - "5052:5052" # Exposes Lighthouse Beacon Node HTTP interface
+      - "9000:9000" # Discovery port
+      - "9001:9001" # QUIC port
+    volumes:
+      - lighthouse_data:/root/.lighthouse
+      - jwt_shared:/jwt:rw # Corrected mount point with write permissions
+    networks:
+      - ethereum
+    restart: unless-stopped
+    depends_on:
+      - geth
+    environment:
+      - LOG_LEVEL=info
+
+  # Geth Configuration
+  geth:
+    image: ethereum/client-go:stable
+    command: 
+      - --sepolia 
+      - --syncmode=snap
+      - --http #Enable the HTTP-RPC server
+      - --http.addr=0.0.0.0 # HTTP-RPC server listening interface
+      - --http.api=web3,eth,net,personal # API's offered over the HTTP-RPC interface
+      - --authrpc.addr=0.0.0.0 
+      - --authrpc.port=8551 
+      - --authrpc.vhosts=*
+      - --authrpc.jwtsecret=/jwt/jwtsecret
+    ports:
+      - "8545:8545" # Exposes Geth HTTP RPC interface
+      - "8551:8551" # RPC Auth port
+    volumes:
+      - geth_data:/root/.ethereum
+      - jwt_shared:/jwt:rw # Consistent JWT mount with write permissions
+    networks:
+      - ethereum
+    restart: unless-stopped
+    environment:
+      - GETH_LOG_LEVEL=info
+
+  # Python API Service
+  api:
+    build: ./api
+    ports:
+      - "8888:8888"  # Exposes API service
+    networks:
+      - ethereum
+    depends_on:
+      - geth
+      - lighthouse
+
+volumes:
+  geth_data:
+  lighthouse_data:
+  jwt_shared:
+
+networks:
+  ethereum:
+    driver: bridge

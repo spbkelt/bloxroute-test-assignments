@@ -1,0 +1,39 @@
+(venv) ubuntu@ip-172-31-92-252:~/bloxroute/api$ pytest test_api.py 
+============================================================================== test session starts ===============================================================================
+platform linux -- Python 3.12.3, pytest-8.3.3, pluggy-1.5.0
+rootdir: /home/ubuntu/bloxroute/api
+collected 2 items                                                                                                                                                                
+
+test_api.py FF                                                                                                                                                             [100%]
+
+==================================================================================== FAILURES ====================================================================================
+__________________________________________________________________________________ test_status ___________________________________________________________________________________
+
+testing_client = <FlaskClient <Flask 'app'>>
+
+    def test_status(testing_client):
+        """Test the /status endpoint."""
+        response = testing_client.get('/status', query_string={"api_key": API_KEY})
+>       assert response.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code
+
+test_api.py:18: AssertionError
+__________________________________________________________________________________ test_height ___________________________________________________________________________________
+
+testing_client = <FlaskClient <Flask 'app'>>
+
+    def test_height(testing_client):
+        """Test the /height endpoint."""
+        response = testing_client.get('/height')
+        assert response.status_code == 200
+>       assert 'geth_height' in response.json
+E       AssertionError: assert 'geth_height' in {'geth_heigth': 0}
+E        +  where {'geth_heigth': 0} = <WrapperTestResponse 18 bytes [200 OK]>.json
+
+test_api.py:25: AssertionError
+============================================================================ short test summary info =============================================================================
+FAILED test_api.py::test_status - assert 500 == 200
+FAILED test_api.py::test_height - AssertionError: assert 'geth_height' in {'geth_heigth': 0}
+=============================================================================== 2 failed in 2.22s ================================================================================
+(venv) ubuntu@ip-172-31-92-252:~/bloxroute/api$ 

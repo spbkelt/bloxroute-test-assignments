@@ -1,0 +1,138 @@
+$ ansible-playbook -i inventory.ini playbooks/fluentd.yaml
+
+PLAY [Install and configure Fluentd for Nginx logs] ******************************************************************************************************************************
+
+TASK [Gathering Facts] ***********************************************************************************************************************************************************
+ok: [nginx-server]
+
+TASK [Install Fluentd] ***********************************************************************************************************************************************************
+changed: [nginx-server]
+
+TASK [Copy denylist file] ********************************************************************************************************************************************************
+ok: [nginx-server]
+
+TASK [Read and parse the denylist.txt file into a list] **************************************************************************************************************************
+ok: [nginx-server]
+
+TASK [Copy fluentd.conf configuration] *******************************************************************************************************************************************
+ok: [nginx-server]
+
+TASK [Create the denylist_audit.log file] ****************************************************************************************************************************************
+changed: [nginx-server]
+
+TASK [Ensure _fluentd has read access to the log files] **************************************************************************************************************************
+ok: [nginx-server] => (item=/var/log/nginx/access.log)
+ok: [nginx-server] => (item=/var/log/nginx/error.log)
+
+TASK [Restart Fluentd service] ***************************************************************************************************************************************************
+changed: [nginx-server]
+
+TASK [Ensure Fluentd is started and enabled] *************************************************************************************************************************************
+ok: [nginx-server]
+
+PLAY RECAP ***********************************************************************************************************************************************************************
+nginx-server               : ok=9    changed=3    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+$ sudo systemctl status fluentd
+● fluentd.service - fluentd: All in one package of Fluentd
+     Loaded: loaded (/lib/systemd/system/fluentd.service; enabled; vendor preset: enabled)
+     Active: active (running) since Tue 2024-11-19 13:19:20 UTC; 35s ago
+       Docs: https://docs.fluentd.org/
+    Process: 47928 ExecStart=/opt/fluent/bin/fluentd --log $FLUENT_PACKAGE_LOG_FILE --daemon /var/run/fluent/fluentd.pid $FLUENT_PACKAGE_OPTIONS (code=exited, status=0/SUCCESS)
+   Main PID: 47934 (fluentd)
+      Tasks: 8 (limit: 1130)
+     Memory: 94.1M
+        CPU: 1.401s
+     CGroup: /system.slice/fluentd.service
+             ├─47934 /opt/fluent/bin/ruby /opt/fluent/bin/fluentd --log /var/log/fluent/fluentd.log --daemon /var/run/fluent/fluentd.pid
+             └─47937 /opt/fluent/bin/ruby -Eascii-8bit:ascii-8bit /opt/fluent/bin/fluentd --log /var/log/fluent/fluentd.log --daemon /var/run/fluent/fluentd.pid --under-supervis>
+
+Nov 19 13:19:20 ip-10-0-1-185 systemd[1]: Starting fluentd: All in one package of Fluentd...
+Nov 19 13:19:20 ip-10-0-1-185 systemd[1]: Started fluentd: All in one package of Fluentd.
+
+$ cat /etc/fluent/fluentd.conf 
+<source>
+  @type tail
+  path /var/log/nginx/access.log
+  pos_file /var/log/fluent/fluentd-nginx-access.pos
+  tag nginx.access
+  <parse>
+    @type nginx
+    expression /^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)"(?:\s+(?<http_x_forwarded_for>[^ ]+))?)?$/
+    time_format %d/%b/%Y:%H:%M:%S %z
+  </parse>
+  read_from_head true
+  @log_level debug
+</source>
+
+<source>
+  @type tail
+  path /var/log/nginx/error.log
+  pos_file /var/log/fluent/fluentd-nginx-error.pos
+  tag nginx.error
+  <parse>
+    @type nginx
+    expression /^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)"(?:\s+(?<http_x_forwarded_for>[^ ]+))?)?$/
+    time_format %d/%b/%Y:%H:%M:%S %z
+  </parse>
+  read_from_head true
+  @log_level debug
+</source>
+
+<filter nginx.**>
+  @type grep
+  <regexp>
+    key remote
+    pattern /^(?=(91.242.153.22)).*/
+  </regexp>
+  @log_level debug
+</filter>
+
+<match nginx.**>
+  @type file
+  path /var/log/fluent/denylist_audit.log
+  append true
+  time_slice_format %Y%m%d
+  time_slice_wait 10m
+  @log_level debug
+</match>
+
+$ curl localhost
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+$ sudo tail /var/log/fluent/denylist_audit.log/buffer.b62743d3df230dcaf22bfbb5335451af2.log
+2024-11-19T13:03:47+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}
+2024-11-19T13:03:49+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}
+2024-11-19T13:03:50+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}
+2024-11-19T13:03:52+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}
+2024-11-19T13:05:15+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}
+2024-11-19T13:05:30+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}
+2024-11-19T13:05:40+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}
+2024-11-19T13:05:45+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}
+2024-11-19T13:05:50+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}
+2024-11-19T13:15:37+00:00	nginx.access	{"remote":"91.242.153.22","host":"-","user":"-","method":"GET","path":"/","code":"304","size":"0","referer":"-","agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"}

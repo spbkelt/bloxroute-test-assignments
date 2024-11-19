@@ -1,0 +1,72 @@
+---
+- name: Install and configure Fluentd for Nginx logs
+  hosts: nginx_servers
+  become: true
+  vars:
+    fluentd_conf_path: "/etc/fluent/fluentd.conf"
+    nginx_log_dir: "/var/log/nginx"
+    denylist_src_file: "roles/fluentd/files/denylist.txt"
+    denylist_file: "/home/ubuntu/denylist.txt"
+
+  tasks:
+    # Install Fluentd
+    - name: Install Fluentd
+      ansible.builtin.shell: |
+        if ! command -v fluentd &> /dev/null; then
+          curl -fsSL https://toolbelt.treasuredata.com/sh/install-ubuntu-jammy-fluent-package5.sh | sh
+        fi
+
+    # Copy the denylist file
+    - name: Copy denylist file
+      copy:
+        src: "{{ denylist_src_file }}"
+        dest: "{{ denylist_file }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    # Read the denylist.txt file
+    - name: Read and parse the denylist.txt file into a list
+      set_fact:
+        denylist: "{{ (lookup('file', denylist_file) | split('\n') | select('match', '.*\\S.*') | list) }}"
+
+    # Copy Fluentd config from template
+    - name: Copy fluentd.conf configuration
+      template:
+        src: roles/fluentd/templates/fluentd.conf.j2
+        dest: "{{ fluentd_conf_path }}"
+        owner: root
+        group: root
+        mode: '0644'
+    
+    # Ensure denylist_audit.log is created and has correct permissions for Fluentd
+    - name: Create the denylist_audit.log file
+      file:
+        path: /var/log/fluent/denylist_audit.log
+        state: touch
+        mode: '0644'
+        owner: _fluentd
+        group: _fluentd
+
+    - name: Ensure _fluentd has read access to the log files
+      file:
+        path: "{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - /var/log/nginx/access.log
+        - /var/log/nginx/error.log
+
+    # Ensure Fluentd service is restarted to apply the config
+    - name: Restart Fluentd service
+      service:
+        name: fluentd
+        state: restarted
+
+    # Ensure Fluentd service is enabled and started
+    - name: Ensure Fluentd is started and enabled
+      service:
+        name: fluentd
+        state: started
+        enabled: true
